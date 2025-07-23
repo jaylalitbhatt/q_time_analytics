@@ -1,7 +1,0 @@
-{
-  "host": "client-data-reports.cluster-cr1xcrql8wde.us-east-1.rds.amazonaws.com",
-  "port": 3306,
-  "user": "clientreportadmin",
-  "password": "Red0rt77CL",
-  "database": "qount"
-}
