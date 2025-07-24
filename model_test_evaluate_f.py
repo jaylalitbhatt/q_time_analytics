@@ -1,15 +1,17 @@
 import os
 import json
 import boto3
+import traceback
+import mysql.connector
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from urllib.parse import quote_plus
-import mysql.connector
 from langchain_openai import AzureChatOpenAI
 from langchain_community.utilities import SQLDatabase
 from langchain_community.agent_toolkits import SQLDatabaseToolkit
 from langgraph.prebuilt import create_react_agent
 from fastapi.responses import PlainTextResponse
+from datetime import datetime
 
 # =====================================================
 # Load Environment & Secrets
@@ -45,15 +47,41 @@ encoded_password = quote_plus(password)
 db_uri = f"mysql+pymysql://{encoded_user}:{encoded_password}@{host}:3306/{database}"
 
 # =====================================================
-# Test MySQL Connection
+# MySQL Connection Utility
 # =====================================================
-try:
-    connection = mysql.connector.connect(
+def get_db_connection():
+    return mysql.connector.connect(
         host=host,
         user=user,
         password=password,
         database=database
     )
+
+# =====================================================
+# Logging Utility
+# =====================================================
+def log_event(log_type: str, endpoint: str = None, user_query: str = None, response: str = None, error_message: str = None, stack_trace: str = None):
+    """Insert logs into system_logs table (API & ERROR)."""
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("""
+                       INSERT INTO time_insights_system_logs (log_type, endpoint, user_query, response, error_message, stack_trace, log_time)
+                       VALUES (%s, %s, %s, %s, %s, %s, %s)
+                       """, (log_type, endpoint, user_query, response, error_message, stack_trace, datetime.utcnow()))
+        conn.commit()
+    except Exception as e:
+        print(f"⚠️ Logging failed: {e}")
+    finally:
+        if conn.is_connected():
+            cursor.close()
+            conn.close()
+
+# =====================================================
+# Test MySQL Connection
+# =====================================================
+try:
+    connection = get_db_connection()
     connection.close()
 except Exception as e:
     raise RuntimeError(f"❌ MySQL Connection failed: {e}")
@@ -82,7 +110,6 @@ llm = AzureChatOpenAI(
 toolkit = SQLDatabaseToolkit(db=db, llm=llm)
 tools = toolkit.get_tools()
 
-# Wrap SQL execution tool for security
 for tool in tools:
     if tool.name.lower() == "sql_db_query":
         tool._run = safe_sql_tool(tool._run)
@@ -103,15 +130,16 @@ async def query_agent(req: QueryRequest):
         raise HTTPException(status_code=400, detail="Question cannot be empty.")
 
     try:
-        # Get final result instead of streaming intermediate steps
-        result = agent.invoke(
-            {"messages": [{"role": "user", "content": req.question}]}
-        )
+        result = agent.invoke({"messages": [{"role": "user", "content": req.question}]})
+        final_answer = result["messages"][-1].content.strip()
 
-        # Extract the final answer (last message content)
-        final_answer = result["messages"][-1].content
-        return final_answer.strip()
+        # Log API request & response (merged with query history)
+        log_event("API", endpoint="/query", user_query=req.question, response=final_answer)
+
+        return final_answer
     except Exception as e:
+        error_stack = traceback.format_exc()
+        log_event("ERROR", endpoint="/query", user_query=req.question, error_message=str(e), stack_trace=error_stack)
         raise HTTPException(status_code=400, detail=str(e))
 
 # =====================================================
