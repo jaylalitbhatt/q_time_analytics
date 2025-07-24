@@ -20,4 +20,4 @@ COPY model_test_evaluate_f.py .
 EXPOSE 8000
 
 # Run FastAPI with uvicorn
-CMD ["uvicorn", "model_test_evaluate_f:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["uvicorn", "model_test_evaluate_f:app", "--host", "0.0.0.0", "--port", "8081"]
