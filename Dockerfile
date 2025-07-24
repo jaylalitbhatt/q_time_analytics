@@ -17,7 +17,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY model_test_evaluate_f.py .
 
 # Expose port
-EXPOSE 8000
+EXPOSE 8081
 
 # Run FastAPI with uvicorn
 CMD ["uvicorn", "model_test_evaluate_f:app", "--host", "0.0.0.0", "--port", "8081"]
