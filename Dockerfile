@@ -4,10 +4,9 @@ FROM python:3.11-slim
 # Set work directory
 WORKDIR /app
 
-# Install system dependencies
+# Install system dependencies (optional)
 RUN apt-get update && apt-get install -y \
     build-essential \
-    default-mysql-client \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy requirements and install
@@ -21,4 +20,4 @@ COPY model_test_evaluate_f.py .
 EXPOSE 8000
 
 # Run FastAPI with uvicorn
-CMD ["uvicorn", "main:app", "--host", "127.0.0.1", "--port", "8000"]
+CMD ["uvicorn", "model_test_evaluate_f:app", "--host", "0.0.0.0", "--port", "8000"]
